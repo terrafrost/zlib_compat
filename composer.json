@@ -29,7 +29,7 @@
     "autoload": {
         "files": ["lib/zlib.php"],
         "psr-4": {
-            "bcmath_compat\\": "src"
+            "zlib_compat\\": "src"
         }
     },
     "scripts": {

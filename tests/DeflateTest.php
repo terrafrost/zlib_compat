@@ -80,7 +80,7 @@ class DeflateTest extends PHPUnit\Framework\TestCase
         $data = deflate_add($context, $orig, ZLIB_PARTIAL_FLUSH);
         $data.= deflate_add($context, $orig, ZLIB_FINISH);
 
-        $this->runTests($orig  $orig, $data);
+        $this->runTests($orig . $orig, $data);
     }
 
     /**
@@ -94,7 +94,7 @@ class DeflateTest extends PHPUnit\Framework\TestCase
         $data = deflate_add($context, $orig, ZLIB_SYNC_FLUSH);
         $data.= deflate_add($context, $orig, ZLIB_FINISH);
 
-        $this->runTests($orig  $orig, $data);
+        $this->runTests($orig . $orig, $data);
     }
 
     private function runTests($expected, $compressed)
@@ -107,9 +107,10 @@ class DeflateTest extends PHPUnit\Framework\TestCase
         // test decompressing the string with one byte at a time
         $deflate = new Deflate(ZLIB_ENCODING_RAW);
         $context = inflate_init(ZLIB_ENCODING_RAW);
+        $aFull = $bFull = '';
         for ($i = 0; $i < strlen($compressed); $i++) {
-            $aFull.= ($a = inflate_add($compressed[$i]));
-            $bFull.= ($b = $deflate->decompress($data[$i]));
+            $aFull.= ($a = inflate_add($context, $compressed[$i]));
+            $bFull.= ($b = $deflate->decompress($compressed[$i]));
             $this->assertSame($a, $b);
         }
         $this->assertSame($aFull, $bFull);
