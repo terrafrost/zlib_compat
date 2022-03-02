@@ -297,7 +297,6 @@ class Deflate
                                     $consume = self::$extraBits[$data];
                                     if ($consume) { // (if set) can be between 1 and 5
                                         $extra = $state['extra'] = $state['extra'] ?? self::consume($payload, self::$extraBits[$data], $pos, $consumed);
-                                        $this->consumed = $consumed;
                                         $extra<<= 8 - $consume;
                                         self::flipBits($extra);
                                         $length+= $extra;
@@ -306,7 +305,6 @@ class Deflate
                                     $state['distance'] = $state['distance'] ?? self::consume($payload, 5, $pos, $consumed);
                                     self::handleRLE($output, $length, $state['distance'], $payload, $pos, $consumed);
                                     unset($state['extra'], $state['distance']);
-                                    $this->consumed = $consumed;
                                     break;
                                 // literal byte - 8 bits
                                 case $data >= 24 && $data <= 95:
@@ -314,7 +312,6 @@ class Deflate
                                     $char = chr($data - 48); // 0 - 143 (143 = 95 * 2 - 1)
 
                                     $output.= $char;
-                                    $this->consumed = $consumed;
                                     break;
                                 // length - 8 bits
                                 case $data >= 96 && $data <= 99:
@@ -542,7 +539,6 @@ break 3;
 
         $output = substr($output, strlen($this->output));
 
-        $this->consumed = $consumed;
         $this->output.= $output;
 
         return $output;
