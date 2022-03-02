@@ -331,7 +331,7 @@ class Deflate
                                         $length+= $extra;
                                     }
                                     // Distance codes 0-31 are represented by (fixed-length) 5-bit codes
-                                    $state['distance'] = self::consume($payload, 5, $pos, $consumed);
+                                    $state['distance'] = $state['distance'] ?? self::consume($payload, 5, $pos, $consumed);
                                     self::handleRLE($output, $length, $state['distance'], $payload, $pos, $consumed);
                                     unset($state['data2'], $state['extra'], $state['distance']);
                                     break;
@@ -589,15 +589,17 @@ break 3;
             case $consume > 7: // can be as large as 13
 // untested
                 if ($consumed + $consume >= 16) {
+// this doesn't seem right
                     throw new \OutOfBoundsException('Undefined array key ' . ($pos + 2), 2);
                 }
 
-                $extra = self::consume($payload, 7, $pos, $consumed) << 1;
+                $extra = $this->state['RLEextra'] = $this->state['RLEextra'] ?? (self::consume($payload, 7, $pos, $consumed) << 1);
                 self::flipBits($extra);
                 $distance+= $extra;
 
                 $consume-= 7; // now $consume's max size will be 6
                 $extra = self::consume($payload, $consume, $pos, $consumed);
+                unset($this->state['RLEextra']);
                 $distance+= ($extra & 1) << 7;
                 $extra>>= 1;
                 self::flipBits($extra);
@@ -611,14 +613,12 @@ break 3;
                 self::flipBits($extra);
                 $distance+= $extra;
         }
-        $result = "match $length $distance\n";
         $sub = substr($output, -$distance);
         while ($length > $distance) {
             $output.= $sub;
             $length-= $distance;
         }
         $output.= substr($sub, 0, $length);
-        return $result;
     }
 
     /**
