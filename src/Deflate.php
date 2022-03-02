@@ -211,7 +211,7 @@ class Deflate
      * @param string $flush_mode
      * @return string
      */
-    public function decompress($payload, $flush_mode = ZLIB_SYNC_FLUSH)
+    public function decompress($payload)
     {
         if ($this->processHeader) {
             self::decodeHeader($payload, $this->encoding);
