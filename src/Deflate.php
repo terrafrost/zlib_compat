@@ -244,7 +244,7 @@ class Deflate
                 case 0: // no compression
                     if (!isset($state['len'])) {
                         if (count($payload) - $pos < 5) {
-                            $this->prepend = array_slice($payload, -count($payload) + $pos);
+                            $this->prepend = array_slice($payload, -count($payload) + $pos - 1);
                             return '';
                         }
                         list($lenLSB, $lenMSB, $nlenLSB, $nlenMSB) = array_slice($payload, $pos, 4);
