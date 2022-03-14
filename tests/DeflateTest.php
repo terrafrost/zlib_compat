@@ -108,6 +108,17 @@ class DeflateTest extends PHPUnit\Framework\TestCase
         $this->runTests($orig . $orig, $data);
     }
 
+    public function testTwoBlocks3()
+    {
+        $orig = 'ccdcbbccdadcbcdacaadbacccdcbbaba';
+
+        $context = deflate_init(ZLIB_ENCODING_RAW, ['strategy' => ZLIB_FILTERED]);
+        $data = deflate_add($context, $orig, ZLIB_BLOCK);
+        $data.= deflate_add($context, $orig, ZLIB_FINISH);
+
+        $this->runTests($orig . $orig, $data);
+    }
+
     private function runTests($expected, $compressed)
     {
         // test decompression the entire string
