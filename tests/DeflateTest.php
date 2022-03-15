@@ -72,60 +72,53 @@ class DeflateTest extends PHPUnit\Framework\TestCase
         $this->runTests($orig, $data);
     }
 
-    public function testTwoBlocks()
+    /**
+     * Produces all combinations of test values.
+     *
+     * @return array
+     */
+    public function twoBlockCombos()
     {
-        $orig = 'ccdcbbccdadcbcdacaadbacccdcbbaba';
+        $strats = [
+            ZLIB_FILTERED,
+            ZLIB_HUFFMAN_ONLY,
+            ZLIB_RLE,
+            ZLIB_FIXED,
+            ZLIB_DEFAULT_STRATEGY
+        ];
+        $flushes = [
+            ZLIB_BLOCK,
+            ZLIB_NO_FLUSH,
+            ZLIB_PARTIAL_FLUSH,
+            // Sync Flushes add a "no compression" block of 00 00 FF FF between the two main blocks
+            ZLIB_SYNC_FLUSH,
+            ZLIB_FULL_FLUSH,
+            ZLIB_FINISH
+        ];
 
-        $context = deflate_init(ZLIB_ENCODING_RAW, ['strategy' => ZLIB_FILTERED]);
-        $data = deflate_add($context, $orig, ZLIB_PARTIAL_FLUSH);
-        $data.= deflate_add($context, $orig, ZLIB_FINISH);
+        $result = [];
 
-        $this->runTests($orig . $orig, $data);
+        foreach ($strats as $strat) {
+            foreach ($flushes as $flush1) {
+                foreach ($flushes as $flush2) {
+                    $result[] = [$strat, $flush1, $flush2];
+                }
+            }
+        }
+
+        return $result;
     }
 
     /**
-     * Sync Flushes add a "no compression" block of 00 00 FF FF between the two main blocks
+     * @dataProvider twoBlockCombos
      */
-    public function testTwoBlocksWithExtraNoCompression()
+    public function testTwoBlocks($strat, $flush1, $flush2)
     {
         $orig = 'ccdcbbccdadcbcdacaadbacccdcbbaba';
 
-        $context = deflate_init(ZLIB_ENCODING_RAW, ['strategy' => ZLIB_FILTERED]);
-        $data = deflate_add($context, $orig, ZLIB_SYNC_FLUSH);
-        $data.= deflate_add($context, $orig, ZLIB_FINISH);
-
-        $this->runTests($orig . $orig, $data);
-    }
-
-    public function testTwoBlocks2()
-    {
-        $orig = 'ccdcbbccdadcbcdacaadbacccdcbbaba';
-
-        $context = deflate_init(ZLIB_ENCODING_RAW, ['strategy' => ZLIB_FILTERED]);
-        $data = deflate_add($context, $orig, ZLIB_FULL_FLUSH);
-        $data.= deflate_add($context, $orig, ZLIB_FINISH);
-
-        $this->runTests($orig . $orig, $data);
-    }
-
-    public function testTwoBlocks3()
-    {
-        $orig = 'ccdcbbccdadcbcdacaadbacccdcbbaba';
-
-        $context = deflate_init(ZLIB_ENCODING_RAW, ['strategy' => ZLIB_FILTERED]);
-        $data = deflate_add($context, $orig, ZLIB_BLOCK);
-        $data.= deflate_add($context, $orig, ZLIB_FINISH);
-
-        $this->runTests($orig . $orig, $data);
-    }
-
-    public function testTwoBlocks4()
-    {
-        $orig = 'ccdcbbccdadcbcdacaadbacccdcbbaba';
-
-        $context = deflate_init(ZLIB_ENCODING_RAW, ['strategy' => ZLIB_FILTERED]);
-        $data = deflate_add($context, $orig, ZLIB_FINISH);
-        $data.= deflate_add($context, $orig, ZLIB_FINISH);
+        $context = deflate_init(ZLIB_ENCODING_RAW, ['strategy' => $strat]);
+        $data = deflate_add($context, $orig, $flush1);
+        $data.= deflate_add($context, $orig, $flush2);
 
         $this->runTests($orig . $orig, $data);
     }
