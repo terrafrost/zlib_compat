@@ -80,20 +80,20 @@ class DeflateTest extends PHPUnit\Framework\TestCase
     public function twoBlockCombos()
     {
         $strats = [
-            ZLIB_FILTERED,
-            ZLIB_HUFFMAN_ONLY,
-            ZLIB_RLE,
-            ZLIB_FIXED,
-            ZLIB_DEFAULT_STRATEGY
+            ZLIB_FILTERED,        // 1
+            ZLIB_HUFFMAN_ONLY,    // 2
+            ZLIB_RLE,             // 3
+            ZLIB_FIXED,           // 4
+            ZLIB_DEFAULT_STRATEGY // 0
         ];
         $flushes = [
-            ZLIB_BLOCK,
-            ZLIB_NO_FLUSH,
-            ZLIB_PARTIAL_FLUSH,
+            ZLIB_BLOCK,           // 5
+            ZLIB_NO_FLUSH,        // 0
+            ZLIB_PARTIAL_FLUSH,   // 1
             // Sync Flushes add a "no compression" block of 00 00 FF FF between the two main blocks
-            ZLIB_SYNC_FLUSH,
-            ZLIB_FULL_FLUSH,
-            ZLIB_FINISH
+            ZLIB_SYNC_FLUSH,      // 2
+            ZLIB_FULL_FLUSH,      // 3
+            ZLIB_FINISH           // 4
         ];
 
         $result = [];
