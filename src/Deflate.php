@@ -286,7 +286,8 @@ class Deflate
                                     $bfinal = $state['bfinal'];
                                     $state = [];
                                     if ($bfinal) {
-                                        break 4;
+                                        $pos+= 1;
+                                        $consumed = 0;
                                     }
 
                                     break 2;
@@ -485,7 +486,8 @@ class Deflate
                                     $bfinal = $state['bfinal'];
                                     $state = [];
                                     if ($bfinal) {
-                                        break 4;
+                                        $pos+= 1;
+                                        $consumed = 0;
                                     }
 break 3;
                                     //break 2;
