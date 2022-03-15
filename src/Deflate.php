@@ -238,8 +238,15 @@ class Deflate
 
         $payloadLength = count($payload);
         while ($pos <= $payloadLength) {
-            $state['bfinal'] = $state['bfinal'] ?? self::consume($payload, 1, $pos, $consumed);
-            $state['btype'] = $state['btype'] ?? self::consume($payload, 2, $pos, $consumed);
+            try {
+                $state['bfinal'] = $state['bfinal'] ?? self::consume($payload, 1, $pos, $consumed);
+                $state['btype'] = $state['btype'] ?? self::consume($payload, 2, $pos, $consumed);
+            } catch (\OutOfBoundsException $e) {
+                if ($e->getCode()) {
+                    $this->prepend = array_slice($payload, -$e->getCode());
+                    break;
+                }
+            }
             switch ($state['btype']) {
                 case 0: // no compression
                     if (!isset($state['len'])) {
