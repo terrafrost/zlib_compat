@@ -244,8 +244,8 @@ class Deflate
             } catch (\OutOfBoundsException $e) {
                 if ($e->getCode()) {
                     $this->prepend = array_slice($payload, -$e->getCode());
-                    break;
                 }
+                break;
             }
             switch ($state['btype']) {
                 case 0: // no compression
