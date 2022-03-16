@@ -128,7 +128,12 @@ class DeflateTest extends PHPUnit\Framework\TestCase
         // test decompression the entire string
         $deflate = new Deflate(ZLIB_ENCODING_RAW);
         $output = $deflate->decompress($compressed);
-        $this->assertSame($expected, $output);
+        // when the last block was flushed with ZLIB_NO_FLUSH it won't be included in the
+        // decompressed string
+        // gzinflate($compressed) doesn't work because it seems to return the empty string
+        // if the last block isn't final (?) so we use inflate_add()
+        $ref = inflate_add(inflate_init(ZLIB_ENCODING_RAW), $compressed);
+        $this->assertSame($ref, $output);
 
         // test decompressing the string with one byte at a time
         $deflate = new Deflate(ZLIB_ENCODING_RAW);
