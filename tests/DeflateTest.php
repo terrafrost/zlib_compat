@@ -18,7 +18,7 @@ class DeflateTest extends PHPUnit\Framework\TestCase
         $context = deflate_init(ZLIB_ENCODING_RAW, ['strategy' => ZLIB_FILTERED]);
         $data = deflate_add($context, $orig, ZLIB_FINISH);
 
-        $this->runTests($orig, $data);
+        $this->runTests($data);
     }
 
     /**
@@ -32,11 +32,11 @@ class DeflateTest extends PHPUnit\Framework\TestCase
 
         $context = deflate_init(ZLIB_ENCODING_RAW, ['strategy' => ZLIB_FILTERED]);
         $data = deflate_add($context, $orig, ZLIB_FINISH);
-        $this->runTests($orig, $data);
+        $this->runTests($data);
 
         $context = deflate_init(ZLIB_ENCODING_RAW);
         $data = deflate_add($context, $orig, ZLIB_FINISH);
-        $this->runTests($orig, $data);
+        $this->runTests($data);
     }
 
     public function testLengths()
@@ -45,7 +45,7 @@ class DeflateTest extends PHPUnit\Framework\TestCase
         $context = deflate_init(ZLIB_ENCODING_RAW, ['strategy' => ZLIB_FILTERED]);
         $data = deflate_add($context, $orig, ZLIB_FINISH);
 
-        $this->runTests($orig, $data);
+        $this->runTests($data);
     }
 
     /**
@@ -57,7 +57,7 @@ class DeflateTest extends PHPUnit\Framework\TestCase
         $context = deflate_init(ZLIB_ENCODING_RAW, ['strategy' => ZLIB_FILTERED]);
         $data = deflate_add($context, $orig, ZLIB_FINISH);
 
-        $this->runTests($orig, $data);
+        $this->runTests($data);
     }
 
     public function testLengths2()
@@ -69,7 +69,7 @@ class DeflateTest extends PHPUnit\Framework\TestCase
         $context = deflate_init(ZLIB_ENCODING_RAW, ['strategy' => ZLIB_FIXED, 'level' => 9]);
         $data = deflate_add($context, $orig, ZLIB_FINISH);
 
-        $this->runTests($orig, $data);
+        $this->runTests($data);
     }
 
     /**
@@ -120,10 +120,10 @@ class DeflateTest extends PHPUnit\Framework\TestCase
         $data = deflate_add($context, $orig, $flush1);
         $data.= deflate_add($context, $orig, $flush2);
 
-        $this->runTests($orig . $orig, $data);
+        $this->runTests($data);
     }
 
-    private function runTests($expected, $compressed)
+    private function runTests($compressed)
     {
         // test decompression the entire string
         $deflate = new Deflate(ZLIB_ENCODING_RAW);
