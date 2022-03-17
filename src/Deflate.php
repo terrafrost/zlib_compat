@@ -250,7 +250,7 @@ class Deflate
             switch ($state['btype']) {
                 case 0: // no compression
                     if (!isset($state['len'])) {
-                        if (count($payload) - $pos < 5) {
+                        if (count($payload) - $pos < 4) {
                             $this->prepend = array_slice($payload, -count($payload) + $pos - 1);
                             return '';
                         }
