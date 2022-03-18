@@ -252,7 +252,9 @@ class Deflate
                     if (!isset($state['len'])) {
                         if (count($payload) - $pos < 4) {
                             $this->prepend = array_slice($payload, -count($payload) + $pos - 1);
-                            return '';
+                            $output = substr($output, strlen($this->output));
+                            $this->output.= $output;
+                            return $output;
                         }
                         list($lenLSB, $lenMSB, $nlenLSB, $nlenMSB) = array_slice($payload, $pos, 4);
                         self::flipBits($lenLSB);
