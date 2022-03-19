@@ -500,8 +500,7 @@ class Deflate
                                         $consumed = 0;
                                         break 4;
                                     }
-break 3;
-                                    //break 2;
+                                    break 3;
                                 default: // $code > 256:
                                     $length = self::$baseLength[$code];
                                     $consume = self::$extraBits[$code];
