@@ -444,7 +444,7 @@ class Deflate
 
                                     break;
                                 case 16:
-                                    $size = $lengths[array_key_last($lengths)];
+                                    $size = end($lengths);
                                     // Copy the previous code length 3 - 6 times.
                                     // The next 2 bits indicate repeat length
 
