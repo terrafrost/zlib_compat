@@ -314,7 +314,7 @@ class Deflate
                                     }
                                     // Distance codes 0-31 are represented by (fixed-length) 5-bit codes
                                     $state['distance'] = $state['distance'] ?? self::consume($payload, 5, $pos, $consumed);
-                                    self::handleRLE($output, $length, $state['distance'], $payload, $pos, $consumed);
+                                    self::handleRLE($output, $length, $state['distance'], $payload, $pos, $consumed, $state);
                                     unset($state['extra'], $state['distance']);
                                     break;
                                 // literal byte - 8 bits
@@ -340,7 +340,7 @@ class Deflate
                                     }
                                     // Distance codes 0-31 are represented by (fixed-length) 5-bit codes
                                     $state['distance'] = $state['distance'] ?? self::consume($payload, 5, $pos, $consumed);
-                                    self::handleRLE($output, $length, $state['distance'], $payload, $pos, $consumed);
+                                    self::handleRLE($output, $length, $state['distance'], $payload, $pos, $consumed, $state);
                                     unset($state['data2'], $state['extra'], $state['distance']);
                                     break;
                                 // literal byte - 9 bits
@@ -525,7 +525,7 @@ class Deflate
                                         unset($state['tempCode'], $codeNum);
                                     }
 
-                                    self::handleRLE($output, $length, $state['distance'], $payload, $pos, $consumed);
+                                    self::handleRLE($output, $length, $state['distance'], $payload, $pos, $consumed, $state);
 
                                     unset($state['extra'], $state['distance']);
                             }
@@ -586,7 +586,7 @@ class Deflate
      * @param int $pos
      * @param int $consumed
      */
-    private static function handleRLE(&$output, $length, $distance, $payload, &$pos, &$consumed)
+    private static function handleRLE(&$output, $length, $distance, $payload, &$pos, &$consumed, &$state)
     {
         if ($distance >= 30) {
             throw new \Exception('"distance codes 30-31 will never actually occur in the compressed data"');
@@ -601,13 +601,13 @@ class Deflate
                     throw new \OutOfBoundsException('Undefined array key ' . ($pos + 2), 2);
                 }
 
-                $extra = $this->state['RLEextra'] = $this->state['RLEextra'] ?? (self::consume($payload, 7, $pos, $consumed) << 1);
+                $extra = $state['RLEextra'] = $state['RLEextra'] ?? (self::consume($payload, 7, $pos, $consumed) << 1);
                 self::flipBits($extra);
                 $distance+= $extra;
 
                 $consume-= 7; // now $consume's max size will be 6
                 $extra = self::consume($payload, $consume, $pos, $consumed);
-                unset($this->state['RLEextra']);
+                unset($state['RLEextra']);
                 $distance+= ($extra & 1) << 7;
                 $extra>>= 1;
                 self::flipBits($extra);
