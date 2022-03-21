@@ -595,25 +595,21 @@ class Deflate
         $distance = self::$baseLength[(int) $distance];
         switch (true) {
             case $consume > 7: // can be as large as 13
-// untested
-                if ($consumed + $consume >= 16) {
-// this doesn't seem right
-                    throw new \OutOfBoundsException('Undefined array key ' . ($pos + 2), 2);
-                }
-
-                $extra = $state['RLEextra'] = $state['RLEextra'] ?? (self::consume($payload, 7, $pos, $consumed) << 1);
-                self::flipBits($extra);
-                $distance+= $extra;
-
-                $consume-= 7; // now $consume's max size will be 6
-                $extra = self::consume($payload, $consume, $pos, $consumed);
+                $extra = $state['RLEextra'] = $state['RLEextra'] ?? (self::consume($payload, 7, $pos, $consumed) << ($consume - 7));
+                $extra|= self::consume($payload, $consume - 7, $pos, $consumed);
                 unset($state['RLEextra']);
-                $distance+= ($extra & 1) << 7;
-                $extra>>= 1;
-                self::flipBits($extra);
-                $extra<<= 8 - $consume + 1;
-                self::flipBits($extra);
+
+                $part1 = $extra & 255;
+                self::flipBits($part1);
+
+                $part2 = $extra >> 8;
+                $part2<<= 17 - $consume; // 8 - ($consume - 8) + 1 = 8 - $consume + 8 + 1
+                self::flipBits($part2);
+
+                $extra = ($part2 << 8) | $part1;
+
                 $distance+= $extra;
+
                 break;
             case $consume !== 0:
                 $extra = self::consume($payload, $consume, $pos, $consumed);
