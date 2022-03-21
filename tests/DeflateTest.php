@@ -123,6 +123,29 @@ class DeflateTest extends PHPUnit\Framework\TestCase
         $this->runTests($data);
     }
 
+    public function testLongString()
+    {
+        $orig = 'e4ad43f1f2c48a2619f44a6f0aae5f0e7233795f1ed7888c9da3dbc4ccc427' .
+                'faf75a9b2f5d685911d1765387ea1b7b5e8a4776c4f2bc33f962f54d6af262' .
+                '5311e8a749663597047138abc451249410a9109b8a8762a5f8279ba47ede6d' .
+                'af86278bc5eabb3f6d80f6e9e4302507eb3e87ba84e45c5c3ae4bdee4af3a0' .
+                'eb36c4e0c4f14d671e156c3e5fecd419a4af353577821003d2e662028dc2bb' .
+                'b3a5af0a0dbf83af6e3c771f67ecb20d4332136e92e0a305d6d1c940aaa0a4' .
+                '9c81e494901c5c6b166a15e2cd98a1155bd585c824d5ea4b2ddf6f9a7e6ffc' .
+                '1d6202a225a6d0b6222bae14cb138ff9c0017d0b62c09bb75bbcbc4d1a4446' .
+                '533fbcecc47af0ba59ee7c5db65a7a9527fdcf79503707da2117678fd7156d' .
+                '7dbf350c44a4a29cbde7928d433b27bd200c6f6ad1bf7f7c90d2884135d326' .
+                '7328d1eeccc47b990bd9ea79d9df79183c1b7bc60f12a4bdb431a0116d9c8a' .
+                '622c3f42eea388d161443e7d708c7971d997b1cabfaa1e5a81603be66a441f' .
+                'c80de31439514367977982142f92bf86d42b91fd772ffffb135344ec39e0aa' .
+                '0c5b8b271f5acbdb0e09cffd4e4ee779a1e9027cf1a5e61ad811d37932f4be' .
+                '1ff128a449a63e5d624338e8f59a77a740f0466c53cca963c47c18f9e44534' .
+                '4b254b10b53abb5b860c38d2fc1c41f12d8cc4caeffe72846eb6c5e16f7da3' .
+                '9e5b33c2d9e8a08898a60b3ec7a18d11';
+
+        $this->runTests(gzdeflate($orig));
+    }
+
     private function runTests($compressed)
     {
         // test decompression the entire string
