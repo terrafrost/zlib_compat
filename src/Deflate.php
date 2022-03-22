@@ -586,7 +586,7 @@ class Deflate
      * @param int $pos
      * @param int $consumed
      */
-    private static function handleRLE(&$output, $length, $distance, $payload, &$pos, &$consumed, &$state)
+    private static function handleRLE(&$output, $length, $distance, $payload, &$pos, &$consumed, &$state = null)
     {
         if ($distance >= 30) {
             throw new \Exception('"distance codes 30-31 will never actually occur in the compressed data"');
