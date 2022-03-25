@@ -228,11 +228,6 @@ class Deflate
         $payload = unpack('C*', $payload);
         $state = &$this->state;
 
-        foreach ($payload as &$char) {
-            self::flipBits($char);
-        }
-        unset($char);
-
         if (count($this->prepend)) {
             array_unshift($payload, ...$this->prepend);
             array_unshift($payload, 0);
@@ -261,10 +256,6 @@ class Deflate
                             return $output;
                         }
                         list($lenLSB, $lenMSB, $nlenLSB, $nlenMSB) = array_slice($payload, $pos, 4);
-                        self::flipBits($lenLSB);
-                        self::flipBits($lenMSB);
-                        self::flipBits($nlenLSB);
-                        self::flipBits($nlenMSB);
                         $len = ($lenMSB << 8) | $lenLSB;
                         $nlen = ($nlenMSB << 8) | $nlenLSB;
                         $pos+= 5;
@@ -282,17 +273,18 @@ class Deflate
                             $this->output.= $output;
                             return $output;
                         }
-                        self::flipBits($payload[$pos]);
                         $output.= chr($payload[$pos]);
                     }
                     if ($i == $state['len']) {
                         $state = [];
                     }
                     break;
-                case 2: // compressed with fixed Huffman codes
+                case 1: // compressed with fixed Huffman codes
                     while ($pos <= $payloadLength) {
                         try {
                             $data = $state['data'] = $state['data'] ?? self::consume($payload, 7, $pos, $consumed);
+                            $data<<= 1;
+                            self::flipBits($data);
                             switch (true) {
                                 // end of block
                                 case $data === 0:
@@ -312,8 +304,6 @@ class Deflate
                                     $consume = self::$extraBits[$data];
                                     if ($consume) { // (if set) can be between 1 and 5
                                         $extra = $state['extra'] = $state['extra'] ?? self::consume($payload, self::$extraBits[$data], $pos, $consumed);
-                                        $extra<<= 8 - $consume;
-                                        self::flipBits($extra);
                                         $length+= $extra;
                                     }
                                     // Distance codes 0-31 are represented by (fixed-length) 5-bit codes
@@ -338,8 +328,6 @@ class Deflate
                                     $consume = self::$extraBits[$data];
                                     if ($consume) {
                                         $extra = $state['extra'] = $state['extra'] ?? self::consume($payload, self::$extraBits[$data], $pos, $consumed);
-                                        $extra<<= 8 - $consume;
-                                        self::flipBits($extra);
                                         $length+= $extra;
                                     }
                                     // Distance codes 0-31 are represented by (fixed-length) 5-bit codes
@@ -365,21 +353,18 @@ class Deflate
                         }
                     }
                     break;
-                case 1: // compressed with dynamic Huffman codes
-                    // # of Literal/Length codes
+                case 2: // compressed with dynamic Huffman codes
                     try {
-                        $hlit = $state['hlit'] = $state['hlit'] ?? self::consume($payload, 5, $pos, $consumed) << 3;
-                        self::flipBits($hlit);
+                        // # of Literal/Length codes
+                        $hlit = $state['hlit'] = $state['hlit'] ?? self::consume($payload, 5, $pos, $consumed);
                         $hlit+= 257;
 
                         // # of Distance codes
-                        $hdist = $state['hdist'] = $state['hdist'] ?? self::consume($payload, 5, $pos, $consumed) << 3;
-                        self::flipBits($hdist);
+                        $hdist = $state['hdist'] = $state['hdist'] ?? self::consume($payload, 5, $pos, $consumed);
                         $hdist+= 1;
 
                         // # of Code Length codes
-                        $hclen = $state['hclen'] = $state['hclen'] ?? self::consume($payload, 4, $pos, $consumed) << 4;
-                        self::flipBits($hclen);
+                        $hclen = $state['hclen'] = $state['hclen'] ?? self::consume($payload, 4, $pos, $consumed);
                         $hclen+= 4;
 
                         $maxBits = 0;
@@ -388,8 +373,7 @@ class Deflate
                         }
 
                         for ($i = count($state['hc'] ?? []); $i < $hclen; $i++) {
-                            $state['hc'][] = $temp = self::consume($payload, 3, $pos, $consumed) << 5;
-                            self::flipBits($temp);
+                            $state['hc'][] = $temp = self::consume($payload, 3, $pos, $consumed);
                             // a code length of 0 means the corresponding symbol
                             // (literal/length or distance code length) is not used
                             if ($temp) {
@@ -433,8 +417,6 @@ class Deflate
                                     // Repeat a code length of 0 for 11 - 138 times
                                     // (7 bits of length)
                                     $temp = self::consume($payload, 7, $pos, $consumed);
-                                    $temp<<= 1;
-                                    self::flipBits($temp);
                                     $offset+= $temp + 11;
 
                                     break;
@@ -442,8 +424,6 @@ class Deflate
                                     // Repeat a code length of 0 for 3 - 10 times.
                                     // (3 bits of length)
                                     $temp = self::consume($payload, 3, $pos, $consumed);
-                                    $temp<<= 5;
-                                    self::flipBits($temp);
                                     $offset+= $temp + 3;
 
                                     break;
@@ -452,8 +432,7 @@ class Deflate
                                     // Copy the previous code length 3 - 6 times.
                                     // The next 2 bits indicate repeat length
 
-                                    $length = self::consume($payload, 2, $pos, $consumed) << 6;
-                                    self::flipBits($length);
+                                    $length = self::consume($payload, 2, $pos, $consumed);
                                     $length+= 3;
 
                                     for ($i = 0; $i < $length; $i++) {
@@ -511,8 +490,6 @@ class Deflate
 
                                     if ($consume) {
                                         $extra = $state['extra'] = $state['extra'] ?? self::consume($payload, $consume, $pos, $consumed);
-                                        $extra<<= 8 - $consume;
-                                        self::flipBits($extra);
                                         $length+= $extra;
                                     }
 
@@ -599,6 +576,7 @@ class Deflate
         $distance = self::$baseLength[(int) $distance];
         switch (true) {
             case $consume > 7: // can be as large as 13
+// not so sure about this
                 $extra = $state['RLEextra'] = $state['RLEextra'] ?? (self::consume($payload, 7, $pos, $consumed) << ($consume - 7));
                 $extra|= self::consume($payload, $consume - 7, $pos, $consumed);
                 unset($state['RLEextra']);
@@ -617,8 +595,6 @@ class Deflate
                 break;
             case $consume !== 0:
                 $extra = self::consume($payload, $consume, $pos, $consumed);
-                $extra<<= 8 - $consume;
-                self::flipBits($extra);
                 $distance+= $extra;
         }
         $sub = substr($output, -$distance);
@@ -673,33 +649,60 @@ class Deflate
      */
     private static function consume($str, $len, &$pos, &$consumed)
     {
-        if (!isset($str[$pos])) {
-            throw new \OutOfBoundsException("Undefined array key $pos", 0);
-        }
+        $origLen = $len;
+        $origPos = $pos;
+        $origConsumed = $consumed;
 
         $combined = $len + $consumed;
-        if ($combined > 8) {
-            if (!isset($str[$pos + 1])) {
-                throw new \OutOfBoundsException('Undefined array key ' . ($pos + 1), 1);
+
+        if ($combined < 8) {
+            $bytes = 0;
+        } else {
+            $temp = $len - (8 - $consumed);
+            $temp2= ($len - $temp) % 8;
+            $bytes = floor(($len - $temp - $temp2) / 8);
+        }
+
+        if ($consumed) {
+            if (!isset($str[$pos])) {
+                throw new \OutOfBoundsException("Undefined array key $pos", 0);
             }
 
-            $remaining = 8 - $consumed;
-            $consumed = $len - $remaining;
+            $sublen = min($len, 8 - $consumed);
 
-            $mask = (1 << $remaining) - 1;
-            $result = ($str[$pos++] & $mask) << $consumed;
+            $mask = (1 << $sublen) - 1;
 
-            $mask = (1 << $consumed) - 1;
-
-            return $result | ((($str[$pos] ?? 0) >> (8 - $consumed)) & $mask);
-        } else if ($combined === 8) {
-            $mask = (1 << $len) - 1;
-            $result = ($str[$pos++] >> (8 - $consumed - $len)) & $mask;
-            $consumed = 0;
+            $result = ($str[$pos] >> $consumed) & $mask;
+            $len-= $sublen;
+            $consumed+= $sublen;
+            if ($consumed === 8) {
+                $consumed = 0;
+            }
         } else {
+            $result = $consumed = 0;
+        }
+
+        if ($combined >= 8) {
+            $pos++;
+        }
+
+        while ($bytes--) {
+            if (!isset($str[$pos])) {
+                throw new \OutOfBoundsException("Undefined array key $pos", $pos - $origPos);
+            }
+            $result<<= 8;
+            $result|= $str[$pos++];
+            $len-= 8;
+        }
+
+        if ($len) {
+            if (!isset($str[$pos])) {
+                $consumed = $origConsumed;
+                throw new \OutOfBoundsException("Undefined array key $pos", $pos - $origPos);
+            }
             $mask = (1 << $len) - 1;
-            $result = ($str[$pos] >> (8 - $consumed - $len)) & $mask;
-            $consumed+= $len;
+            $result|= ($str[$pos] & $mask) << ($origLen - $len);
+            $consumed = $len;
         }
 
         return $result;
