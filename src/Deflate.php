@@ -5,6 +5,10 @@
  *
  * PHP version 7 and 8
  *
+ * Useful resources:
+ * - https://blog.za3k.com/understanding-gzip-2/
+ * - https://www.bolet.org/~pornin/deflate-flush.html
+ *
  * @author    Jim Wigginton <terrafrost@php.net>
  * @copyright 2022 Jim Wigginton
  * @license   http://www.opensource.org/licenses/mit-license.html  MIT License

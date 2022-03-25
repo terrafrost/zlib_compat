@@ -8,6 +8,33 @@ use zlib_compat\Deflate;
 class DeflateTest extends PHPUnit\Framework\TestCase
 {
     /**
+     * Uncompressed example from https://blog.za3k.com/understanding-gzip-2/
+     */
+    public function testZA3KUncompressed()
+    {
+        $data = pack('H*', '010f00f0fffffefdfcfbfaf9f8f7f6f5f4f3f2f1');
+        $this->runTests($data);
+    }
+
+    /**
+     * Fixed Huffman example from https://blog.za3k.com/understanding-gzip-2/
+     */
+    public function testZA3KFixed()
+    {
+        $data = pack('H*', 'cb48cdc9c957c84027b900');
+        $this->runTests($data);
+    }
+
+    /**
+     * Dynamic Huffman example from https://blog.za3k.com/understanding-gzip-2/
+     */
+    public function testZA3KDynamic()
+    {
+        $data = pack('H*', '1dc6490100001040c0aca37f883d3c202a979d375e1d0c');
+        $this->runTests($data);
+    }
+
+    /**
      * Codes need to be stored as strings and not ints as this test demonstrates.
      * eg. if a is 0101 and b is 10110 then b will match as q after 101 if ints
      * are used because the leading 0 won't actually be required
