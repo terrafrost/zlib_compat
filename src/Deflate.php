@@ -578,28 +578,9 @@ class Deflate
         }
         $consume = self::$extraBits[(int) $distance];
         $distance = self::$baseLength[(int) $distance];
-        switch (true) {
-            case $consume > 7: // can be as large as 13
-// not so sure about this
-                $extra = $state['RLEextra'] = $state['RLEextra'] ?? (self::consume($payload, 7, $pos, $consumed) << ($consume - 7));
-                $extra|= self::consume($payload, $consume - 7, $pos, $consumed);
-                unset($state['RLEextra']);
-
-                $part1 = $extra & 255;
-                self::flipBits($part1);
-
-                $part2 = $extra >> 8;
-                $part2<<= 17 - $consume; // 8 - ($consume - 8) + 1 = 8 - $consume + 8 + 1
-                self::flipBits($part2);
-
-                $extra = ($part2 << 8) | $part1;
-
-                $distance+= $extra;
-
-                break;
-            case $consume !== 0:
-                $extra = self::consume($payload, $consume, $pos, $consumed);
-                $distance+= $extra;
+        if ($consume !== 0) {
+            $extra = self::consume($payload, $consume, $pos, $consumed);
+            $distance+= $extra;
         }
         $sub = substr($output, -$distance);
         while ($length > $distance) {
@@ -681,21 +662,19 @@ class Deflate
             $consumed+= $sublen;
             if ($consumed === 8) {
                 $consumed = 0;
+                $pos++;
             }
         } else {
             $result = $consumed = 0;
         }
 
-        if ($combined >= 8) {
-            $pos++;
-        }
-
+        $offset = $sublen ?? 0;
         while ($bytes--) {
             if (!isset($str[$pos])) {
                 throw new \OutOfBoundsException("Undefined array key $pos", $pos - $origPos);
             }
-            $result<<= 8;
-            $result|= $str[$pos++];
+            $result|= $str[$pos++] << $offset;
+            $offset+= 8;
             $len-= 8;
         }
 
