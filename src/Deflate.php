@@ -308,7 +308,9 @@ class Deflate
                                     }
                                     // Distance codes 0-31 are represented by (fixed-length) 5-bit codes
                                     $state['distance'] = $state['distance'] ?? self::consume($payload, 5, $pos, $consumed);
-                                    self::handleRLE($output, $length, $state['distance'], $payload, $pos, $consumed, $state);
+                                    $distance = $state['distance'] << 3;
+                                    self::flipBits($distance);
+                                    self::handleRLE($output, $length, $distance, $payload, $pos, $consumed, $state);
                                     unset($state['extra'], $state['distance']);
                                     break;
                                 // literal byte - 8 bits
@@ -332,7 +334,9 @@ class Deflate
                                     }
                                     // Distance codes 0-31 are represented by (fixed-length) 5-bit codes
                                     $state['distance'] = $state['distance'] ?? self::consume($payload, 5, $pos, $consumed);
-                                    self::handleRLE($output, $length, $state['distance'], $payload, $pos, $consumed, $state);
+                                    $distance = $state['distance'] << 3;
+                                    self::flipBits($distance);
+                                    self::handleRLE($output, $length, $distance, $payload, $pos, $consumed, $state);
                                     unset($state['data2'], $state['extra'], $state['distance']);
                                     break;
                                 // literal byte - 9 bits
