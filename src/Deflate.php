@@ -499,7 +499,6 @@ class Deflate
 
                                     if (!isset($state['distance'])) {
 // can we put these into a new function?
-// can we do this without all the bit flipping?
 // what about feeding this byte for byte for compressed streams with headers?
                                         $codeNum = $state['tempCode'] ?? '';
                                         $codeNum.= (string) self::consume($payload, 1, $pos, $consumed);
