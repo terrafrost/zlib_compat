@@ -303,7 +303,7 @@ class Deflate
                                     $length = self::$baseLength[$data];
                                     $consume = self::$extraBits[$data];
                                     if ($consume) { // (if set) can be between 1 and 5
-                                        $extra = $state['extra'] = $state['extra'] ?? self::consume($payload, self::$extraBits[$data], $pos, $consumed);
+                                        $extra = $state['extra'] = $state['extra'] ?? self::consume($payload, $consume, $pos, $consumed);
                                         $length+= $extra;
                                     }
                                     // Distance codes 0-31 are represented by (fixed-length) 5-bit codes
@@ -329,7 +329,7 @@ class Deflate
                                     $length = self::$baseLength[$data];
                                     $consume = self::$extraBits[$data];
                                     if ($consume) {
-                                        $extra = $state['extra'] = $state['extra'] ?? self::consume($payload, self::$extraBits[$data], $pos, $consumed);
+                                        $extra = $state['extra'] = $state['extra'] ?? self::consume($payload, $consume, $pos, $consumed);
                                         $length+= $extra;
                                     }
                                     // Distance codes 0-31 are represented by (fixed-length) 5-bit codes
