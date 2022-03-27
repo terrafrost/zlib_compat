@@ -95,11 +95,39 @@ class Deflate
      */
     private static $extraBits = [
         0, 0,  0,  0,  1,  1,  2,  2,  3,  3,
-        4, 4,  5,  5,  6,  6,  7,  7,  8,  8, 
+        4, 4,  5,  5,  6,  6,  7,  7,  8,  8,
         9, 9, 10, 10, 11, 11, 12, 12, 13, 13,
  257 => 0, 0,  0,  0,  0,  0,  0,  0,  1,  1,
         1, 1,  2,  2,  2,  2,  3,  3,  3,  3,
         4, 4,  4,  4,  5,  5,  5,  5,  0
+    ];
+
+    /**
+     * Base Length with bit flipped keys
+     *
+     * Used by fixed huffman encoding
+     */
+    private static $baseLengthFlipped = [
+        1,  257, 17,  4097,   5, 1025,  65, 16385,   3,  513,
+       33, 8193,  9,  2049, 129,   -1,   2,   385,  25, 6145,
+        7, 1537, 97, 24577,   4,  769,  49, 12289,  13, 3073, 193,
+ 257 => 3,   35, 11,   131,   7,   67,  19,   258,   5,   51,
+       15,  195,  9,    99,  27,   -1,   4,    43,  13,  163,
+        8,   83, 23,    -1,   6,   59,  17,   227,  10,  115,  31
+    ];
+
+    /**
+     * Extra Bits with bit flipped keys
+     *
+     * Used by fixed huffman encoding
+     */
+    private static $extraBitsFlipped = [
+        0, 7,  3, 11,  1,  9,  5, 13,  0,  8,
+        4,12,  2, 10,  6, -1,  0,  7,  3, 11,
+        1, 9,  5, 13,  0,  8,  4, 12,  2, 10, 6,
+ 257 => 0, 3,  1,  5,  0,  4,  2,  0,  0,  3,
+        1, 5,  0,  4,  2, -1,  0,  3,  1,  5,
+        0, 4,  2, -1,  0,  3,  1,  5,  0,  4,  2
     ];
 
     /**
@@ -300,17 +328,15 @@ class Deflate
                                 // length - 7 bits
                                 case $data >= 1 && $data <= 23:
                                     $data+= 256; // 257 - 279
-                                    $length = self::$baseLength[$data];
-                                    $consume = self::$extraBits[$data];
+                                    $length = self::$baseLengthFlipped[$data];
+                                    $consume = self::$extraBitsFlipped[$data];
                                     if ($consume) { // (if set) can be between 1 and 5
-                                        $extra = $state['extra'] = $state['extra'] ?? self::consume($payload, self::$extraBits[$data], $pos, $consumed);
+                                        $extra = $state['extra'] = $state['extra'] ?? self::consume($payload, $consume, $pos, $consumed);
                                         $length+= $extra;
                                     }
                                     // Distance codes 0-31 are represented by (fixed-length) 5-bit codes
                                     $state['distance'] = $state['distance'] ?? self::consume($payload, 5, $pos, $consumed);
-                                    $distance = $state['distance'] << 3;
-                                    self::flipBits($distance);
-                                    self::handleRLE($output, $length, $distance, $payload, $pos, $consumed, $state);
+                                    self::handleRLE($output, $length, $state['distance'], $payload, $pos, $consumed, $state);
                                     unset($state['extra'], $state['distance']);
                                     break;
                                 // literal byte - 8 bits
@@ -326,17 +352,15 @@ class Deflate
                                         throw new \Exception('"Literal/length values 286-287 will never actually occur in the compressed data"');
                                     }
                                     $data = $state['data2'] = $state['data2'] ?? (($data << 1) | self::consume($payload, 1, $pos, $consumed)) + 88;
-                                    $length = self::$baseLength[$data];
-                                    $consume = self::$extraBits[$data];
+                                    $length = self::$baseLengthFlipped[$data];
+                                    $consume = self::$extraBitsFlipped[$data];
                                     if ($consume) {
-                                        $extra = $state['extra'] = $state['extra'] ?? self::consume($payload, self::$extraBits[$data], $pos, $consumed);
+                                        $extra = $state['extra'] = $state['extra'] ?? self::consume($payload, $consume, $pos, $consumed);
                                         $length+= $extra;
                                     }
                                     // Distance codes 0-31 are represented by (fixed-length) 5-bit codes
                                     $state['distance'] = $state['distance'] ?? self::consume($payload, 5, $pos, $consumed);
-                                    $distance = $state['distance'] << 3;
-                                    self::flipBits($distance);
-                                    self::handleRLE($output, $length, $distance, $payload, $pos, $consumed, $state);
+                                    self::handleRLE($output, $length, $state['distance'], $payload, $pos, $consumed, $state);
                                     unset($state['data2'], $state['extra'], $state['distance']);
                                     break;
                                 // literal byte - 9 bits
@@ -499,7 +523,6 @@ class Deflate
 
                                     if (!isset($state['distance'])) {
 // can we put these into a new function?
-// can we do this without all the bit flipping?
 // what about feeding this byte for byte for compressed streams with headers?
                                         $codeNum = $state['tempCode'] ?? '';
                                         $codeNum.= (string) self::consume($payload, 1, $pos, $consumed);
