@@ -386,7 +386,7 @@ class Deflate
                         }
 
                         // "Find the numerical value of the smallest code for each code length"
-                        $codes = $state['codes'] = $state['codes'] ?? self::createMapping($state['codeLengths']);
+                        $state['codes'] = $state['codes'] ?? self::createMapping($state['codeLengths']);
 
                         $state['literalLengths'] = $state['literalLengths'] ?? [];
                         $state['distanceLengths'] = $state['distanceLengths'] ?? [];
@@ -404,17 +404,11 @@ class Deflate
                             if ($state['distanceOffset'] >= $hdist) {
                                 break;
                             }
-                            if (isset($state['code'])) {
-                                $code = $state['code'];
-                            } else {
-                                $codeNum = $state['tempCode'] ?? '';
-                                $codeNum.= (string) self::consume($payload, 1, $pos, $consumed);
-                                while (!isset($codes[$codeNum])) {
-                                    $codeNum.= self::consume($payload, 1, $pos, $consumed);
-                                }
-                                $code = $state['code'] = $codes[$codeNum];
-                                unset($state['tempCode'], $codeNum);
+                            if (!isset($state['code'])) {
+                                $state['code'] = self::getCode($payload, $pos, $consumed, $state, 'codes');
                             }
+
+                            $code = $state['code'];
 
                             switch ($code) {
                                 case 18:
@@ -464,13 +458,7 @@ class Deflate
 
                         while ($pos <= $payloadLength) {
                             if (!isset($state['code'])) {
-                                $codeNum = $state['tempCode'] ?? '';
-                                $codeNum.= (string) self::consume($payload, 1, $pos, $consumed);
-                                while (!isset($state['literals'][$codeNum])) {
-                                    $codeNum.= self::consume($payload, 1, $pos, $consumed);
-                                }
-                                $state['code'] = $state['literals'][$codeNum];
-                                unset($state['tempCode'], $codeNum);
+                                $state['code'] = self::getCode($payload, $pos, $consumed, $state, 'literals');
                             }
 
                             $code = $state['code'];
@@ -498,15 +486,8 @@ class Deflate
                                     }
 
                                     if (!isset($state['distance'])) {
-// can we put these into a new function?
+                                        $state['distance'] = self::getCode($payload, $pos, $consumed, $state, 'distances');
 // what about feeding this byte for byte for compressed streams with headers?
-                                        $codeNum = $state['tempCode'] ?? '';
-                                        $codeNum.= (string) self::consume($payload, 1, $pos, $consumed);
-                                        while (!isset($state['distances'][$codeNum])) {
-                                            $codeNum.= self::consume($payload, 1, $pos, $consumed);
-                                        }
-                                        $state['distance'] = $state['distances'][$codeNum];
-                                        unset($state['tempCode'], $codeNum);
                                     }
 
                                     self::handleRLE($output, $length, $state['distance'], $payload, $pos, $consumed, $state);
@@ -517,9 +498,6 @@ class Deflate
                             unset($state['code']);
                         }
                     } catch (\OutOfBoundsException $e) {
-                        if (isset($codeNum)) {
-                            $state['tempCode'] = $codeNum;
-                        }
                         if ($e->getCode()) {
                             $this->prepend = array_slice($payload, -$e->getCode());
                         }
@@ -688,6 +666,30 @@ class Deflate
         }
 
         return $result;
+    }
+
+    /**
+     * Get the huffman code
+     *
+     * Used in dynamic huffman encoding
+     *
+     * @param string $string
+     * @param int $index
+     * @return string
+     */
+    private static function getCode($payload, &$pos, &$consumed, &$state, $key)
+    {
+        if (!isset($state['tempCode'])) {
+            $state['tempCode'] = '';
+        }
+        $codeNum = &$state['tempCode'];
+        $codeNum.= (string) self::consume($payload, 1, $pos, $consumed);
+        while (!isset($state[$key][$codeNum])) {
+            $codeNum.= self::consume($payload, 1, $pos, $consumed);
+        }
+        unset($state['tempCode']);
+
+        return $state[$key][$codeNum];
     }
 
     /**
