@@ -173,21 +173,43 @@ class DeflateTest extends PHPUnit\Framework\TestCase
         $this->runTests(gzdeflate($orig));
     }
 
-    private function runTests($compressed)
+    public function testZLIBX2()
+    {
+        $orig = 'ccddcdccbacdadaabbbabbcdbddbdbdabddadcbcabccbadacdcadaacaaabcdacddcacdbadbcdccaaabdcddaabdbdcacddcbadbbdaccbccbcabddcdcdacabbacd';
+
+        $context = deflate_init(ZLIB_ENCODING_DEFLATE);
+        $compressed = deflate_add($context, $orig, ZLIB_FINISH);
+        $compressed.= $compressed;
+
+        $this->runTests($compressed, ZLIB_ENCODING_DEFLATE);
+    }
+
+    public function testGZIPX2()
+    {
+        $orig = 'ccddcdccbacdadaabbbabbcdbddbdbdabddadcbcabccbadacdcadaacaaabcdacddcacdbadbcdccaaabdcddaabdbdcacddcbadbbdaccbccbcabddcdcdacabbacd';
+
+        $context = deflate_init(ZLIB_ENCODING_GZIP);
+        $compressed = deflate_add($context, $orig, ZLIB_FINISH);
+        $compressed.= $compressed;
+
+        $this->runTests($compressed, ZLIB_ENCODING_GZIP);
+    }
+
+    private function runTests($compressed, $mode = ZLIB_ENCODING_RAW)
     {
         // test decompression the entire string
-        $deflate = new Deflate(ZLIB_ENCODING_RAW);
+        $deflate = new Deflate($mode);
         $output = $deflate->decompress($compressed);
         // when the last block was flushed with ZLIB_NO_FLUSH it won't be included in the
         // decompressed string
         // gzinflate($compressed) doesn't work because it seems to return the empty string
         // if the last block isn't final (?) so we use inflate_add()
-        $ref = inflate_add(inflate_init(ZLIB_ENCODING_RAW), $compressed);
+        $ref = inflate_add(inflate_init($mode), $compressed);
         $this->assertSame($ref, $output);
 
         // test decompressing the string with one byte at a time
-        $deflate = new Deflate(ZLIB_ENCODING_RAW);
-        $context = inflate_init(ZLIB_ENCODING_RAW);
+        $deflate = new Deflate($mode);
+        $context = inflate_init($mode);
         $aFull = $bFull = '';
         for ($i = 0; $i < strlen($compressed); $i++) {
             $aFull.= ($a = inflate_add($context, $compressed[$i]));

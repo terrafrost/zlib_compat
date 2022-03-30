@@ -52,6 +52,7 @@ class Deflate
      * payload
      */
     private $prepend = [];
+    private $prependStr = '';
 
     /**
      * State
@@ -68,9 +69,22 @@ class Deflate
     private $output = '';
 
     /**
+     * Temp Output
+     *
+     * $this->output is used in conjunction with $output to determine what should be returned.
+     * With recursive calls, however, $output needs to be saved somewhere other than $this->output
+     */
+    private $tempOutput = '';
+
+    /**
      * Process Header
      */
     private $processHeader = true;
+
+    /**
+     * Process Footer
+     */
+    private $processFooter = false;
 
     /**
      * Base Length.
@@ -128,7 +142,45 @@ class Deflate
     }
 
     /**
-     * Decompress with the Deflate algorithm as described in RFC1950
+     * Decode the gzip algorithm footer as described in RFC1952
+     *
+     * @param string $payload
+     * @param string $output
+     * @param int $encoding
+     * @return string
+     */
+    private static function decodeFooter(&$result, $output, $encoding)
+    {
+        switch ($encoding) {
+            case ZLIB_ENCODING_RAW:
+                break;
+            case ZLIB_ENCODING_DEFLATE:
+                if (strlen($result) < 4) {
+                    return false;
+                }
+                if (hash('adler32', $output, true) !== self::shift($result, 4)) {
+                    throw new \Exception('Adler32 mismatch');
+                }
+                break;
+            case ZLIB_ENCODING_GZIP:
+                if (strlen($result) < 8) {
+                    return false;
+                }
+                extract(unpack('Vcrc32/Visize', self::shift($result, 8)));
+                if ($crc32 != crc32($output)) {
+                    throw new \Exception('CRC32 mismatch');
+                }
+                if ($isize != strlen($output)) {
+                    throw new \Exception('Size mismatch');
+                }
+        }
+
+        return true;
+    }
+
+    /**
+     * Decode zlib algorithm header as described in RFC1950 or the gzip algorithm header
+     * as described in RFC1952
      *
      * @param string $payload
      * @return string
@@ -141,6 +193,9 @@ class Deflate
             case ZLIB_ENCODING_RAW:
                 break;
             case ZLIB_ENCODING_DEFLATE:
+                if (strlen($result) < 2) {
+                    return false;
+                }
                 $cmf = ord($result[0]); // Compression Method and flags
                 $cm = $cmf & 0x0F; // Compression flag
                 if ($cm != 8) { // deflate
@@ -153,7 +208,7 @@ class Deflate
                 $windowSize = 1 << ($cinfo + 8);
 
                 $flg = ord($result[1]); // FLaGs)
-                //$fcheck = $flg && 0x0F; // check bits for CMF and FLG
+                //$fcheck = $flg & 0x0F; // check bits for CMF and FLG
                 if ((($cmf << 8) | $flg) % 31) {
                     throw new \Exception('fcheck failed');
                 }
@@ -165,6 +220,9 @@ class Deflate
                 $result = substr($result, 2);
                 break;
             case ZLIB_ENCODING_GZIP:
+                if (strlen($result) < 10) {
+                    return false;
+                }
                 if (substr($result, 0, 2) != "\x1F\x8B") {
                     throw new \Exception('gzip file signature not present');
                 }
@@ -181,31 +239,50 @@ class Deflate
                 list(, $mtime) = unpack('N', substr($result, 4, 4));
                 $xfl = $result[8]; // eXtra FLags
                 $os = ord($result[9]); // Operating System; see https://datatracker.ietf.org/doc/html/rfc1952#page-8
-                $message = Strings::shift($result, 10);
+                $message = self::shift($result, 10);
                 if ($fextra) {
+                    if (strlen($result) < 4) {
+                        return false;
+                    }
                     // see RFC1952 section 2.3.1.1. Extra field
-                    $temp = Strings::shift($result, 2);
+                    $temp = self::shift($result, 2);
                     $message.= $temp;
                     list(, $xlen) = unpack('n', $temp);
-                    $extra = Strings::shift($result, $xlen);
+                    if (strlen($result) < $xlen) {
+                        return false;
+                    }
+                    $extra = self::shift($result, $xlen);
                     $message.= $extra;
                 }
                 if ($fname) {
                     // original file name
-                    $message.= Strings::shift($result, strpos($result, "\0") + 1);
+                    $pos = strpos($result, "\0");
+                    if ($pos === false) {
+                        return false;
+                    }
+                    $message.= self::shift($result, $pos + 1);
                 }
                 if ($fcomment) {
                     // file comment
-                    $message.= Strings::shift($result, strpos($result, "\0") + 1);
+                    $pos = strpos($result, "\0");
+                    if ($pos === false) {
+                        return false;
+                    }
+                    $message.= self::shift($result, $pos + 1);
                 }
                 if ($fcrc) {
-                    list(, $expected) = unpack('n', Strings::shift($result));
+                    if (strlen($result) < 2) {
+                        return false;
+                    }
+                    list(, $expected) = unpack('n', self::shift($result));
                     $actual = crc32($message) & 0xFFFF;
                     if ($expected != $actual) {
                         throw new \Exception('CRC16 does not match');
                     }
                 }
         }
+
+        return true;
     }
 
     /**
@@ -217,14 +294,39 @@ class Deflate
      */
     public function decompress($payload)
     {
+        if ($this->processFooter) {
+            $payload = $this->prependStr . $payload;
+            if (!self::decodeFooter($payload, $this->tempOutput, $this->encoding)) {
+                $this->prependStr = $payload;
+                return '';
+            }
+            $this->size = -1;
+            $this->prependStr = '';
+            $this->processFooter = false;
+            $this->processHeader = true;
+
+            $temp = $this->output;
+            $this->output = '';
+            return $temp;
+        }
+
         if ($this->processHeader) {
-            self::decodeHeader($payload, $this->encoding);
+            $payload = $this->prependStr . $payload;
+            if (!self::decodeHeader($payload, $this->encoding)) {
+                $this->prependStr = $payload;
+                $temp = $this->output;
+                $this->output = '';
+                return $temp;
+            }
+            $this->prependStr = '';
             $this->processHeader = false;
+            $this->tempOutput = '';
         }
 
         $pos = 1;
         $consumed = &$this->consumed;
-        $output = $this->output;
+        $output = &$this->output;
+        $tempOutput = &$this->tempOutput;
         $payload = unpack('C*', $payload);
         $state = &$this->state;
 
@@ -251,9 +353,9 @@ class Deflate
                     if (!isset($state['len'])) {
                         if (count($payload) - $pos < 4) {
                             $this->prepend = array_slice($payload, -count($payload) + $pos - 1);
-                            $output = substr($output, strlen($this->output));
-                            $this->output.= $output;
-                            return $output;
+                            $temp = $output;
+                            $output = '';
+                            return $temp;
                         }
                         list($lenLSB, $lenMSB, $nlenLSB, $nlenMSB) = array_slice($payload, $pos, 4);
                         $len = ($lenMSB << 8) | $lenLSB;
@@ -269,11 +371,12 @@ class Deflate
                     }
                     for ($i = &$state['i']; $i < $state['len']; $i++, $pos++) {
                         if (!isset($payload[$pos])) {
-                            $output = substr($output, strlen($this->output));
-                            $this->output.= $output;
-                            return $output;
+                            $temp = $output;
+                            $output = '';
+                            return $temp;
                         }
                         $output.= chr($payload[$pos]);
+                        $tempOutput.= chr($payload[$pos]);
                     }
                     if ($i == $state['len']) {
                         $state = [];
@@ -291,9 +394,9 @@ class Deflate
                                     $bfinal = $state['bfinal'];
                                     $state = [];
                                     if ($bfinal) {
-                                        $pos+= 1;
+                                        $this->processFooter = true;
                                         $consumed = 0;
-                                        break 4;
+                                        return $this->decompress(pack('C*', ...array_slice($payload, $pos)));
                                     }
 
                                     break 2;
@@ -310,7 +413,7 @@ class Deflate
                                     $state['distance'] = $state['distance'] ?? self::consume($payload, 5, $pos, $consumed);
                                     $distance = $state['distance'] << 3;
                                     self::flipBits($distance);
-                                    self::handleRLE($output, $length, $distance, $payload, $pos, $consumed, $state);
+                                    self::handleRLE($output, $tempOutput, $length, $distance, $payload, $pos, $consumed, $state);
                                     unset($state['extra'], $state['distance']);
                                     break;
                                 // literal byte - 8 bits
@@ -319,6 +422,7 @@ class Deflate
                                     $char = chr($data - 48); // 0 - 143 (143 = 95 * 2 - 1)
 
                                     $output.= $char;
+                                    $tempOutput.= $char;
                                     break;
                                 // length - 8 bits
                                 case $data >= 96 && $data <= 99:
@@ -336,7 +440,7 @@ class Deflate
                                     $state['distance'] = $state['distance'] ?? self::consume($payload, 5, $pos, $consumed);
                                     $distance = $state['distance'] << 3;
                                     self::flipBits($distance);
-                                    self::handleRLE($output, $length, $distance, $payload, $pos, $consumed, $state);
+                                    self::handleRLE($output, $tempOutput, $length, $distance, $payload, $pos, $consumed, $state);
                                     unset($state['data2'], $state['extra'], $state['distance']);
                                     break;
                                 // literal byte - 9 bits
@@ -344,6 +448,7 @@ class Deflate
                                     $data = $state['data2'] = $state['data2'] ?? ($data << 2) | self::consume($payload, 2, $pos, $consumed);
                                     $char = chr($data - 400); // 144 - 255
                                     $output.= $char;
+                                    $tempOutput.= $char;
                                     unset($state['data2']);
                             }
                             unset($state['data']);
@@ -351,9 +456,9 @@ class Deflate
                             if ($e->getCode()) {
                                 $this->prepend = array_slice($payload, -$e->getCode());
                             }
-                            $output = substr($output, strlen($this->output));
-                            $this->output.= $output;
-                            return $output;
+                            $temp = $output;
+                            $output = '';
+                            return $temp;
                         }
                     }
                     break;
@@ -466,14 +571,15 @@ class Deflate
                             switch (true) {
                                 case $code < 256:
                                     $output.= chr($code);
+                                    $tempOutput.= chr($code);
                                     break;
                                 case $code === 256:
                                     $bfinal = $state['bfinal'];
                                     $state = [];
                                     if ($bfinal) {
-                                        $pos+= 1;
+                                        $this->processFooter = true;
                                         $consumed = 0;
-                                        break 4;
+                                        return $this->decompress(pack('C*', ...array_slice($payload, $pos)));
                                     }
                                     break 3;
                                 default: // $code > 256:
@@ -487,10 +593,9 @@ class Deflate
 
                                     if (!isset($state['distance'])) {
                                         $state['distance'] = self::getCode($payload, $pos, $consumed, $state, 'distances');
-// what about feeding this byte for byte for compressed streams with headers?
                                     }
 
-                                    self::handleRLE($output, $length, $state['distance'], $payload, $pos, $consumed, $state);
+                                    self::handleRLE($output, $tempOutput, $length, $state['distance'], $payload, $pos, $consumed, $state);
 
                                     unset($state['extra'], $state['distance']);
                             }
@@ -501,9 +606,9 @@ class Deflate
                         if ($e->getCode()) {
                             $this->prepend = array_slice($payload, -$e->getCode());
                         }
-                        $output = substr($output, strlen($this->output));
-                        $this->output.= $output;
-                        return $output;
+                        $temp = $output;
+                        $output = '';
+                        return $temp;
                     }
                     break;
                 case 3: // reserved (error)
@@ -511,11 +616,9 @@ class Deflate
             }
         }
 
-        $output = substr($output, strlen($this->output));
-
-        $this->output.= $output;
-
-        return $output;
+        $temp = $output;
+        $output = '';
+        return $temp;
     }
 
     /**
@@ -542,13 +645,14 @@ class Deflate
      * Handle run-length encoding
      *
      * @param string $output
+     * @param string $tempOutput
      * @param int $length
      * @param int $distance
      * @param string $payload
      * @param int $pos
      * @param int $consumed
      */
-    private static function handleRLE(&$output, $length, $distance, $payload, &$pos, &$consumed, &$state = null)
+    private static function handleRLE(&$output, &$tempOutput, $length, $distance, $payload, &$pos, &$consumed, &$state = null)
     {
         if ($distance >= 30) {
             throw new \Exception('"distance codes 30-31 will never actually occur in the compressed data"');
@@ -559,12 +663,15 @@ class Deflate
             $extra = self::consume($payload, $consume, $pos, $consumed);
             $distance+= $extra;
         }
-        $sub = substr($output, -$distance);
+        $sub = substr($tempOutput, -$distance);
         while ($length > $distance) {
             $output.= $sub;
+            $tempOutput.= $sub;
             $length-= $distance;
         }
-        $output.= substr($sub, 0, $length);
+        $temp = substr($sub, 0, $length);;
+        $output.= $temp;
+        $tempOutput.= $temp;
     }
 
     /**
