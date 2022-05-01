@@ -128,7 +128,9 @@ class DeflateTest extends PHPUnit\Framework\TestCase
         foreach ($strats as $strat) {
             foreach ($flushes as $flush1) {
                 foreach ($flushes as $flush2) {
-                    $result[] = [$strat, $flush1, $flush2];
+                    for ($size = 1; $size <= 3; $size++) {
+                        $result[] = [$strat, $flush1, $flush2, $size];
+                    }
                 }
             }
         }
@@ -139,7 +141,7 @@ class DeflateTest extends PHPUnit\Framework\TestCase
     /**
      * @dataProvider twoBlockCombos
      */
-    public function testTwoBlocks($strat, $flush1, $flush2)
+    public function testTwoBlocks($strat, $flush1, $flush2, $size)
     {
         $orig = 'ccdcbbccdadcbcdacaadbacccdcbbaba';
 
@@ -147,7 +149,7 @@ class DeflateTest extends PHPUnit\Framework\TestCase
         $data = deflate_add($context, $orig, $flush1);
         $data.= deflate_add($context, $orig, $flush2);
 
-        $this->runTests($data);
+        $this->runTests($data, ZLIB_ENCODING_RAW, $size);
     }
 
     public function testLongString()
@@ -195,7 +197,7 @@ class DeflateTest extends PHPUnit\Framework\TestCase
         $this->runTests($compressed, ZLIB_ENCODING_GZIP);
     }
 
-    private function runTests($compressed, $mode = ZLIB_ENCODING_RAW)
+    private function runTests($compressed, $mode = ZLIB_ENCODING_RAW, $size = 1)
     {
         // test decompression the entire string
         $deflate = new Deflate($mode);
@@ -207,13 +209,13 @@ class DeflateTest extends PHPUnit\Framework\TestCase
         $ref = inflate_add(inflate_init($mode), $compressed);
         $this->assertSame($ref, $output);
 
-        // test decompressing the string with one byte at a time
+        // test decompressing the string with 1-3 bytes at a time
         $deflate = new Deflate($mode);
         $context = inflate_init($mode);
         $aFull = $bFull = '';
-        for ($i = 0; $i < strlen($compressed); $i++) {
-            $aFull.= ($a = inflate_add($context, $compressed[$i]));
-            $bFull.= ($b = $deflate->decompress($compressed[$i]));
+        for ($i = 0; $i < strlen($compressed); $i+= $size) {
+            $aFull.= ($a = inflate_add($context, substr($compressed, $i, $size)));
+            $bFull.= ($b = $deflate->decompress(substr($compressed, $i, $size)));
             $this->assertSame($a, $b);
         }
         $this->assertSame($aFull, $bFull);
