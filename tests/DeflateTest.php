@@ -129,6 +129,10 @@ class DeflateTest extends PHPUnit\Framework\TestCase
             foreach ($flushes as $flush1) {
                 foreach ($flushes as $flush2) {
                     for ($size = 1; $size <= 3; $size++) {
+                        // inflate_add() dies on these
+                        if ($flush1 === ZLIB_FINISH && $flush2 !== ZLIB_NO_FLUSH && $size > 1) {
+                            continue;
+                        }
                         $result[] = [$strat, $flush1, $flush2, $size];
                     }
                 }
@@ -219,5 +223,83 @@ class DeflateTest extends PHPUnit\Framework\TestCase
             $this->assertSame($a, $b);
         }
         $this->assertSame($aFull, $bFull);
+    }
+
+    /**
+     * Produces combos that inflate_add() fails on
+     *
+     * @return array
+     */
+    public function twoInflateFailureCombos()
+    {
+        $strats = [
+            ZLIB_RLE,
+            ZLIB_DEFAULT_STRATEGY
+        ];
+        $flushes = [
+            ZLIB_BLOCK,
+            ZLIB_PARTIAL_FLUSH,
+            ZLIB_SYNC_FLUSH,
+            ZLIB_FULL_FLUSH
+        ];
+
+        $result = [];
+
+        foreach ($strats as $strat) {
+            foreach ($flushes as $flush) {
+                for ($size = 2; $size <= 3; $size++) {
+                    $result[] = [$strat, ZLIB_FINISH, $flush, $size];
+                }
+            }
+        }
+
+        return $result;
+    }
+
+    /**
+     * @dataProvider twoInflateFailureCombos
+     */
+    public function testTwoBlocksWithFailure($strat, $flush1, $flush2, $size)
+    {
+        $orig = 'ccdcbbccdadcbcdacaadbacccdcbbaba';
+
+        $context = deflate_init(ZLIB_ENCODING_RAW, ['strategy' => $strat]);
+        $data = deflate_add($context, $orig, $flush1);
+        $data.= deflate_add($context, $orig, $flush2);
+
+        $this->runTestsWithFailure($data, ZLIB_ENCODING_RAW, $size);
+    }
+
+    private function runTestsWithFailure($compressed, $mode, $size)
+    {
+        // test decompression the entire string
+        $deflate = new Deflate($mode);
+        $output = $deflate->decompress($compressed);
+        $ref = inflate_add(inflate_init($mode), $compressed);
+        $this->assertSame($ref, $output);
+
+        // test decompressing the string with 2-3 bytes at a time
+        $deflate = new Deflate($mode);
+        $context = inflate_init($mode);
+        $aFull = $bFull = '';
+        for ($i = 0; $i < strlen($compressed); $i+= $size) {
+            $bFull.= ($b = $deflate->decompress(substr($compressed, $i, $size)));
+            try {
+                $aFull.= ($a = inflate_add($context, substr($compressed, $i, $size)));
+            } catch (\PHPUnit\Framework\Error\Warning $e) {
+                $this->assertGreaterThanOrEqual(32, $i);
+                $this->assertSame('inflate_add(): data error', $e->getMessage());
+                continue;
+            }
+            $this->assertSame($a, $b);
+        }
+
+        // copied from testTwoBlocksWithFailure()
+        // i don't want to make this a class constant because that would imply that it can be changed
+        // when doing so would break the assertions in the above try / catch block (if zlib changes
+        // it's behavior i want to know)
+        $orig = 'ccdcbbccdadcbcdacaadbacccdcbbaba';
+
+        $this->assertSame(substr($orig . $orig, 0, 62), substr($bFull, 0, 62));
     }
 }

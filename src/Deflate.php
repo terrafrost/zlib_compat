@@ -301,6 +301,9 @@ class Deflate
                 return '';
             }
             $this->size = -1;
+            // zlib does $this->prependStr = '' and thus fails in instances
+            // where zlib_compat succeeds. see DeflateTest::testTwoBlocksWithFailure()
+            // for examples
             $this->prependStr = $payload;
             $this->processFooter = false;
             $this->processHeader = true;
