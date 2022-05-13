@@ -301,7 +301,7 @@ class Deflate
                 return '';
             }
             $this->size = -1;
-            $this->prependStr = '';
+            $this->prependStr = $payload;
             $this->processFooter = false;
             $this->processHeader = true;
 
